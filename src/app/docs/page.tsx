@@ -66,6 +66,9 @@ const fields = [
   ["platformIds", "Optional channel target IDs from your workspace."],
   ["mediaUrl or mediaUrls", "Optional public media URL or array of URLs."],
   ["platformOverrides", "Optional per-platform caption, format, first comment, and related fields."],
+  ["platformOverrides.instagram.trialReel", "Instagram Trial Reel: \"manual\" or \"auto\" (auto-graduates when it performs well). Needs a video."],
+  ["GET /api/platforms", "Lists connected channel ids, types, and handles for platformIds."],
+  ["GET /api/posts?status=scheduled", "Lists queued posts. Optional from / to ISO filters on scheduledAt."],
 ];
 
 function CodeBlock({ children }: { children: string }) {

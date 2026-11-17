@@ -2,12 +2,46 @@ import type { ImageSpec } from "@/lib/platform-specs";
 
 export type InstagramPublishContentType = "feed" | "reel" | "story" | "carousel";
 
+export type TrialReelGraduationStrategy = "MANUAL" | "SS_PERFORMANCE";
+
 export type StoredPlatformOverride = {
   caption?: string;
   firstComment?: string;
   format?: string;
   collaborators?: string[];
+  /**
+   * Instagram Trial Reel. When set, the Reel is shown to non-followers first.
+   * MANUAL: graduate from the Instagram app. SS_PERFORMANCE: auto-graduate when it performs well.
+   */
+  trialReel?: TrialReelGraduationStrategy;
 };
+
+/**
+ * Accepts `true`, "manual", "MANUAL", "ss_performance", "auto", or
+ * `{ graduationStrategy }` and returns a Meta graduation strategy.
+ * `true` maps to MANUAL so nothing reaches followers without a human choice.
+ */
+export function normalizeTrialReelStrategy(
+  value: unknown
+): TrialReelGraduationStrategy | undefined {
+  if (value === true) return "MANUAL";
+  if (isRecord(value)) {
+    return normalizeTrialReelStrategy(
+      value.graduationStrategy ?? value.graduation_strategy ?? true
+    );
+  }
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toUpperCase();
+  if (normalized === "MANUAL" || normalized === "TRUE") return "MANUAL";
+  if (
+    normalized === "SS_PERFORMANCE" ||
+    normalized === "AUTO" ||
+    normalized === "PERFORMANCE"
+  ) {
+    return "SS_PERFORMANCE";
+  }
+  return undefined;
+}
 
 export type PostPublishMetadata = {
   platformOverrides: Record<string, StoredPlatformOverride>;
@@ -102,6 +136,7 @@ export function resolveInstagramContentType(input: {
   format?: string | null;
   contentType: string;
   mediaUrlCount?: number;
+  trialReel?: TrialReelGraduationStrategy;
 }): InstagramPublishContentType | undefined {
   const platformType = input.platformType.toLowerCase();
   if (platformType !== "instagram" && platformType !== "instagram_personal") {
@@ -109,6 +144,8 @@ export function resolveInstagramContentType(input: {
   }
 
   const format = input.format?.toLowerCase();
+  if (input.trialReel) return "reel";
+  if (format === "trial_reel" || format === "trial-reel") return "reel";
   if (format === "story") return "story";
   if (format === "reel") return "reel";
   if (format === "carousel") return "carousel";
@@ -136,6 +173,15 @@ function readOverrideMap(value: unknown): Record<string, StoredPlatformOverride>
         (entry): entry is string => typeof entry === "string" && entry.trim().length > 0
       );
     }
+    const trialReel = normalizeTrialReelStrategy(
+      item.trialReel ?? item.trialParams ?? item.trial_params
+    ) ?? (
+      typeof item.format === "string" &&
+      ["trial_reel", "trial-reel"].includes(item.format.toLowerCase())
+        ? "MANUAL"
+        : undefined
+    );
+    if (trialReel) override.trialReel = trialReel;
     output[key] = override;
   }
 

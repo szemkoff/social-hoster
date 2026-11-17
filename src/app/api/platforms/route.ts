@@ -1,4 +1,10 @@
-import { requireApiWorkspaceManager } from "@/lib/api-authorization";
+import { db } from "@/db";
+import { platforms } from "@/db/schema";
+import {
+  requireApiWorkspaceManager,
+  requireApiWorkspaceViewer,
+} from "@/lib/api-authorization";
+import { eq } from "drizzle-orm";
 import { upsertPlatformConnection } from "@/lib/platform-connections";
 import { PLATFORM_TYPES } from "@/lib/platforms";
 import { NextRequest, NextResponse } from "next/server";
@@ -13,6 +19,29 @@ const createPlatformSchema = z.object({
   config: z.record(z.string(), z.unknown()).nullable().optional(),
   enabled: z.boolean().default(true),
 });
+
+/**
+ * Lists connected channels in the current workspace so agents and scripts can
+ * pick platformIds. Never returns credentials or provider config.
+ */
+export async function GET() {
+  const tenant = await requireApiWorkspaceViewer();
+  if (tenant instanceof NextResponse) return tenant;
+
+  const rows = await db
+    .select({
+      id: platforms.id,
+      name: platforms.name,
+      type: platforms.type,
+      handle: platforms.handle,
+      provider: platforms.provider,
+      enabled: platforms.enabled,
+    })
+    .from(platforms)
+    .where(eq(platforms.workspaceId, tenant.currentWorkspace.id));
+
+  return NextResponse.json({ platforms: rows });
+}
 
 export async function POST(request: NextRequest) {
   const tenant = await requireApiWorkspaceManager();

@@ -1,6 +1,6 @@
 services:
   social-poster:
-    image: ${SOCIAL_POSTER_IMAGE:-ghcr.io/maxpetrusenko/social-poster:main}
+    image: ${SOCIAL_POSTER_IMAGE:-ghcr.io/szemkoff/social-hoster:main}
     pull_policy: always
     env_file:
       - .env

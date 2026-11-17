@@ -12,7 +12,10 @@ import { normalizeNativePlatform } from "./platform-key";
 import { readStoredConnectionConfig } from "@/lib/connection-config";
 import { mediaTypeFromUrl } from "@/lib/media-url";
 import type { PublishResult as PipelinePublishResult } from "@/lib/pipeline/publisher";
-import type { InstagramPublishContentType } from "@/lib/post-publish-metadata";
+import type {
+  InstagramPublishContentType,
+  TrialReelGraduationStrategy,
+} from "@/lib/post-publish-metadata";
 import type { PublishContent } from "./types";
 
 type PlatformRow = typeof platforms.$inferSelect;
@@ -27,6 +30,7 @@ export type NativePublishInput = {
   platformFormat?: string;
   firstComment?: string;
   collaborators?: string[];
+  trialReel?: TrialReelGraduationStrategy;
 };
 
 export type NativeDeleteInput = {
@@ -229,6 +233,10 @@ function buildPublishExtra(target: NativePublishInput) {
 
   if (target.collaborators?.length) {
     extra.collaborators = target.collaborators;
+  }
+
+  if (target.trialReel) {
+    extra.trialReel = target.trialReel;
   }
 
   if (
