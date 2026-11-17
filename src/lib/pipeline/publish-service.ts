@@ -1,7 +1,10 @@
 import { platforms } from "@/db/schema";
 import { db } from "@/db";
 import { readStoredConnectionConfig } from "@/lib/connection-config";
-import type { InstagramPublishContentType } from "@/lib/post-publish-metadata";
+import type {
+  InstagramPublishContentType,
+  TrialReelGraduationStrategy,
+} from "@/lib/post-publish-metadata";
 import {
   getCapabilityFailureReason,
   getPlatformCapabilities,
@@ -28,6 +31,7 @@ export type PublishPlatformInput = {
   platformFormat?: string;
   firstComment?: string;
   collaborators?: string[];
+  trialReel?: TrialReelGraduationStrategy;
 };
 
 export type PublishExecutionSummary = {
@@ -169,6 +173,7 @@ async function publishSingleTarget(
         platformFormat: target.platformFormat,
         firstComment: target.firstComment,
         collaborators: target.collaborators,
+        trialReel: target.trialReel,
       },
     ])
   )[0];

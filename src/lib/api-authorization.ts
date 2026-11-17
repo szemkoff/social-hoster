@@ -75,3 +75,8 @@ export async function requireApiWorkspacePublisher() {
     "Workspace publisher access is required."
   );
 }
+
+/** Any member of the current workspace, including read-only API keys. */
+export async function requireApiWorkspaceViewer() {
+  return requireApiTenant(() => true, "Workspace access is required.");
+}

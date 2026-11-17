@@ -128,6 +128,11 @@ export class InstagramProvider extends OAuthProvider {
     if (content.postType === "reel") {
       payload.media_type = "REELS";
       payload.video_url = mediaUrl;
+      const trialReel = readTrialReelStrategy(content);
+      if (trialReel) {
+        // Trial Reels are shown to non-followers first. Meta requires media_type=REELS.
+        payload.trial_params = JSON.stringify({ graduation_strategy: trialReel });
+      }
     } else if (content.postType === "story") {
       payload.media_type = "STORIES";
       if (isVideoUrl(mediaUrl)) {
@@ -269,6 +274,15 @@ export class InstagramProvider extends OAuthProvider {
       { platform: this.platformName, rawResponse: body }
     );
   }
+}
+
+function readTrialReelStrategy(content: PublishContent) {
+  const extra = content.extra;
+  const value =
+    extra && typeof extra === "object" && !Array.isArray(extra)
+      ? (extra as Record<string, unknown>).trialReel
+      : undefined;
+  return value === "MANUAL" || value === "SS_PERFORMANCE" ? value : undefined;
 }
 
 function isVideoUrl(url: string) {

@@ -1,11 +1,83 @@
 import { db } from "@/db";
 import { platforms, posts, postTargets, profiles } from "@/db/schema";
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiWorkspaceEditor } from "@/lib/api-authorization";
+import {
+  requireApiWorkspaceEditor,
+  requireApiWorkspaceViewer,
+} from "@/lib/api-authorization";
 import { recordTenantAuditEvent } from "@/lib/audit";
 import { readStringArray } from "@/lib/post-publish-metadata";
 import crypto from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lt } from "drizzle-orm";
+
+/**
+ * Lists posts in the current workspace.
+ * Query: status (e.g. scheduled), from / to (ISO, filters scheduledAt), limit (max 200).
+ */
+export async function GET(request: NextRequest) {
+  const tenant = await requireApiWorkspaceViewer();
+  if (tenant instanceof NextResponse) return tenant;
+
+  const params = request.nextUrl.searchParams;
+  const status = params.get("status")?.trim();
+  const from = parseDateParam(params.get("from"));
+  const to = parseDateParam(params.get("to"));
+  const limit = Math.min(Math.max(Number(params.get("limit")) || 100, 1), 200);
+
+  const conditions = [eq(posts.workspaceId, tenant.currentWorkspace.id)];
+  if (status) conditions.push(eq(posts.status, status));
+  if (from) conditions.push(gte(posts.scheduledAt, from));
+  if (to) conditions.push(lt(posts.scheduledAt, to));
+
+  const rows = await db
+    .select({
+      id: posts.id,
+      title: posts.title,
+      content: posts.content,
+      contentType: posts.contentType,
+      mediaUrl: posts.mediaUrl,
+      status: posts.status,
+      scheduledAt: posts.scheduledAt,
+      publishedAt: posts.publishedAt,
+      metadata: posts.metadata,
+    })
+    .from(posts)
+    .where(and(...conditions))
+    .orderBy(asc(posts.scheduledAt))
+    .limit(limit);
+
+  const postIds = rows.map((row) => row.id);
+  const targets = postIds.length
+    ? await db
+        .select({
+          postId: postTargets.postId,
+          platformId: postTargets.platformId,
+          status: postTargets.status,
+          publishedUrl: postTargets.publishedUrl,
+          error: postTargets.error,
+        })
+        .from(postTargets)
+        .where(inArray(postTargets.postId, postIds))
+    : [];
+
+  return NextResponse.json({
+    posts: rows.map((row) => ({
+      ...row,
+      scheduledAt: row.scheduledAt?.toISOString() ?? null,
+      publishedAt: row.publishedAt?.toISOString() ?? null,
+      platformOverrides:
+        (row.metadata as Record<string, unknown> | null)?.platformOverrides ?? {},
+      metadata: undefined,
+      targets: targets.filter((target) => target.postId === row.id),
+    })),
+  });
+}
+
+function parseDateParam(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 export async function POST(request: NextRequest) {
   const tenant = await requireApiWorkspaceEditor();

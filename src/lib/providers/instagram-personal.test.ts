@@ -277,6 +277,24 @@ describe("InstagramPersonalProvider", () => {
     });
   });
 
+  it("publishes trial reels with trial_params", async () => {
+    const { calls } = mockInstagramPublishFetch();
+    const provider = providerForTest();
+
+    await provider.publishPost("publish-token", {
+      text: "",
+      postType: "reel",
+      mediaUrls: ["https://cdn.example.com/reel.mp4"],
+      extra: { trialReel: "SS_PERFORMANCE" },
+    });
+
+    expect(jsonBody(calls[0])).toEqual({
+      media_type: "REELS",
+      video_url: "https://cdn.example.com/reel.mp4",
+      trial_params: JSON.stringify({ graduation_strategy: "SS_PERFORMANCE" }),
+    });
+  });
+
   it("publishes carousels with child and container payloads", async () => {
     const { calls } = mockInstagramPublishFetch();
     const provider = providerForTest();

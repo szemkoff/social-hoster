@@ -1,4 +1,7 @@
-import type { InstagramPublishContentType } from "@/lib/post-publish-metadata";
+import type {
+  InstagramPublishContentType,
+  TrialReelGraduationStrategy,
+} from "@/lib/post-publish-metadata";
 import { mediaTypeFromUrl } from "@/lib/media-url";
 
 const LATE_URL = "https://getlate.dev/api/v1/posts";
@@ -44,6 +47,7 @@ export interface PublishTarget {
   platformFormat?: string;
   firstComment?: string;
   collaborators?: string[];
+  trialReel?: TrialReelGraduationStrategy;
 }
 
 function getToken(): string {
@@ -295,6 +299,12 @@ function buildLatePlatformSpecificData(
       target.instagramContentType !== "story"
     ) {
       data.collaborators = target.collaborators;
+    }
+
+    if (target.trialReel && target.instagramContentType === "reel") {
+      data.trialParams = { graduationStrategy: target.trialReel };
+      // Trial reels are only shown to non-followers, so they never share to feed.
+      delete data.shareToFeed;
     }
   }
 

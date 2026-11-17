@@ -37,6 +37,8 @@ let birdSessionCheckInterval: NodeJS.Timeout | null = null;
 let birdSessionCheckBootTimer: NodeJS.Timeout | null = null;
 let dripQueueInterval: NodeJS.Timeout | null = null;
 let blogAutomationInterval: NodeJS.Timeout | null = null;
+let duePostInterval: NodeJS.Timeout | null = null;
+let duePostSweepRunning = false;
 
 export async function initScheduler(): Promise<void> {
   console.log("[scheduler] init");
@@ -47,6 +49,7 @@ export async function initScheduler(): Promise<void> {
   ensureBirdSessionCheckWorker();
   ensureDripQueueWorker();
   ensureBlogAutomationWorker();
+  ensureDuePostWorker();
   await reconcileSchedules("init");
 
   console.log("[scheduler] ready");
@@ -316,6 +319,44 @@ function readBirdSessionCheckIntervalMs() {
 function readProfileRefreshIntervalMs() {
   const hours = Number(process.env.PROFILE_REFRESH_SWEEP_HOURS ?? 24);
   return (Number.isFinite(hours) && hours > 0 ? hours : 24) * 60 * 60 * 1000;
+}
+
+/**
+ * Publishes one-off posts created with intent "schedule" once scheduledAt passes.
+ * Set DUE_POST_WORKER_ENABLED=false to turn it off (for example on a replica).
+ */
+function ensureDuePostWorker() {
+  if (duePostInterval) return;
+  if (process.env.DUE_POST_WORKER_ENABLED === "false") {
+    console.log("[scheduler] due post worker disabled");
+    return;
+  }
+
+  const runSweep = async () => {
+    if (duePostSweepRunning) return;
+    duePostSweepRunning = true;
+    try {
+      const { processDueScheduledPosts } = await import("@/lib/publish/publish-post");
+      const summary = await processDueScheduledPosts();
+      if (summary.length > 0) {
+        console.log("[scheduler] due posts processed:", JSON.stringify(summary));
+      }
+    } catch (error) {
+      console.error("[scheduler] due post sweep failed:", error);
+    } finally {
+      duePostSweepRunning = false;
+    }
+  };
+
+  const bootTimer = setTimeout(() => {
+    void runSweep();
+  }, 20_000);
+  bootTimer.unref?.();
+
+  duePostInterval = setInterval(() => {
+    void runSweep();
+  }, 60_000);
+  duePostInterval.unref?.();
 }
 
 function ensureDripQueueWorker() {

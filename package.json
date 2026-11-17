@@ -28,6 +28,7 @@
     "tickets:poll": "node scripts/hermes-linear-poller.mjs",
     "articles:import": "node scripts/import-medium-article-workspace.mjs",
     "articles:import:notion-done": "node scripts/import-notion-done-article-workspace.mjs",
+    "content:week": "node scripts/content-week.mjs",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:migrate": "drizzle-kit migrate",
