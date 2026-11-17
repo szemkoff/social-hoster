@@ -31,7 +31,7 @@ describe("Docker build", () => {
     );
 
     expect(compose).toContain(
-      "image: ${SOCIAL_POSTER_IMAGE:-ghcr.io/maxpetrusenko/social-poster:main}"
+      "image: ${SOCIAL_POSTER_IMAGE:-ghcr.io/szemkoff/social-hoster:main}"
     );
     expect(compose).toContain("pull_policy: always");
     expect(compose).not.toContain("build:");
