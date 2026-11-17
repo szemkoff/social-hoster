@@ -53,9 +53,48 @@ Production `.env` minimum:
 | `R2_*` / `CLOUDFLARE_*` | optional, for hosting uploaded media publicly |
 | `DUE_POST_WORKER_ENABLED` | leave unset (on). Set `false` only on extra replicas |
 
-Note: `.github/workflows/fast-coolify-deploy.yml` and `docker-compose.yml` still point to
-the upstream author's image (`ghcr.io/maxpetrusenko/social-poster`) and Coolify app.
-Change `IMAGE_NAME` / `COOLIFY_UUID` (or `SOCIAL_POSTER_IMAGE`) to your own before using them.
+The pipeline and `docker-compose.yml` now use this fork's image, `ghcr.io/szemkoff/social-hoster:main`.
+Each push to `main` builds that image. The Coolify deploy step only runs once the repo
+variable `COOLIFY_UUID` is set.
+
+### No server yet: recommended setup (VPS + Coolify)
+
+The app needs a long-running container with a persistent disk, because it uses SQLite and a
+cron worker that runs every minute. Serverless hosts won't work.
+
+1. **Rent a VPS.** Ubuntu 24.04 LTS with 2 vCPU, 4 GB RAM, and 40 GB or more of disk. Video
+   rendering uses Chromium and ffmpeg, so 4 GB is the practical minimum. Use an x86 (amd64)
+   plan, since the image is built for amd64. Good options are Hetzner CX23/CX33,
+   DigitalOcean, or Vultr.
+2. **Point a domain at it.** Add a DNS `A` record such as `social.azureyachtgroup.com` that
+   points to the server's IP.
+3. **Install Coolify** over SSH as root:
+   `curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash`
+   Then open `http://<server-ip>:8000` and create the admin account right away. The first
+   account is only accepted for about 10 minutes.
+4. **Allow Coolify to pull the private image.** In Coolify, go to Servers, then
+   Docker registries, and add `ghcr.io` with user `szemkoff` and a GitHub PAT that has the
+   `read:packages` scope. Alternatively, make the package public on GitHub.
+5. **Create the app.** Choose New Resource, then Docker Image, and enter
+   `ghcr.io/szemkoff/social-hoster:main`. Then configure:
+   - port: `3000`
+   - domain: `https://social.azureyachtgroup.com`
+   - persistent storage: mount at `/data`
+   - health check: `/api/health`
+   - environment variables: everything in the table above
+6. **Create a Supabase project** (the free tier works) for login. Copy its URL and anon key
+   into the environment variables.
+7. **Turn on auto-deploy.** In Coolify, go to Keys & Tokens and create an API token. Then
+   set it up in GitHub:
+   - repo secret `COOLIFY_URL`, for example `http://<server-ip>:8000`
+   - repo secret `COOLIFY_API_TOKEN`
+   - repo variable `COOLIFY_UUID`, which is the app's UUID from its Coolify URL
+
+   After that, every push to `main` deploys automatically.
+
+Plain Docker alternative (no Coolify): copy `docker-compose.yml` and `.env` to the server,
+run `docker login ghcr.io`, then `docker compose pull && docker compose up -d`. Put Caddy
+in front for HTTPS.
 
 ## 2. Connect accounts and create an API key
 
