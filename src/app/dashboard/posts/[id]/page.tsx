@@ -10,6 +10,8 @@ import { PostDeleteButton } from "@/components/post-delete-button";
 import { PostApprovalRequestCard } from "@/components/post-approval-request-card";
 import { getLatestApprovalRequestForPost } from "@/lib/approval-requests";
 import { getTenantContext } from "@/lib/tenancy";
+import { isVideoMediaUrl, videoThumbnailSrc } from "@/lib/media-type";
+import { normalizePostPublishMetadata } from "@/lib/post-publish-metadata";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700",
@@ -78,6 +80,17 @@ export default async function PostDetailPage({
     postId: post.id,
   });
 
+  const publishMetadata = normalizePostPublishMetadata(post.metadata);
+  const mediaUrls =
+    publishMetadata.mediaUrls.length > 0
+      ? publishMetadata.mediaUrls
+      : post.mediaUrl
+        ? [post.mediaUrl]
+        : [];
+  const trialReel = Object.values(publishMetadata.platformOverrides).find(
+    (override) => override.trialReel
+  )?.trialReel;
+
   return (
     <DashboardPageContent className="max-w-4xl">
       {/* Back Button */}
@@ -123,6 +136,48 @@ export default async function PostDetailPage({
           {post.content}
         </p>
       </div>
+
+      {/* Media */}
+      {mediaUrls.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-gray-900">
+              Media ({mediaUrls.length})
+            </h2>
+            {trialReel && (
+              <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-cyan-100 text-cyan-700">
+                Trial Reel ·{" "}
+                {trialReel === "SS_PERFORMANCE" ? "auto-share if it performs" : "share manually"}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {mediaUrls.map((url) => (
+              <a
+                key={url}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="block aspect-square overflow-hidden rounded-lg bg-gray-100"
+              >
+                {isVideoMediaUrl(url) ? (
+                  <video
+                    src={videoThumbnailSrc(url)}
+                    muted
+                    playsInline
+                    controls
+                    preload="metadata"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={url} alt="" className="h-full w-full object-cover" />
+                )}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Details Grid */}
       <div className="grid grid-cols-2 gap-6 mb-8">
