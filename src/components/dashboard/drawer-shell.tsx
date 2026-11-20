@@ -399,15 +399,15 @@ export function DashboardDrawerShell({
           >
             <div className={cn("flex min-w-0 items-center gap-3", compact && "lg:hidden")}>
               <Image
-                src="/logo-64.png"
-                alt=""
-                width={44}
-                height={44}
-                className="h-11 w-11 shrink-0 rounded-[0.85rem]"
+                src="/azure-wordmark.svg"
+                alt="Azure Yacht Group"
+                width={163}
+                height={40}
+                priority
+                unoptimized
+                className="h-10 w-auto shrink-0"
               />
-              <p className="font-serif text-[2rem] leading-none tracking-[-0.05em] text-[#171717]">
-                SMM Agent
-              </p>
+              <span className="sr-only">Social</span>
             </div>
             <button
               type="button"

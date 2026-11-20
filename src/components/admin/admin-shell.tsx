@@ -32,7 +32,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-3 border-b border-[rgba(23,23,23,0.06)] px-5 py-5">
           <Image
             src="/logo-64.png"
-            alt=""
+            alt="Azure Yacht Group"
             width={36}
             height={36}
             className="h-9 w-9 rounded-xl"

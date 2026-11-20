@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/utils";
 import { and, desc, eq } from "drizzle-orm";
 import { getTenantContext } from "@/lib/tenancy";
 import { redirect } from "next/navigation";
+import { isVideoMediaUrl, videoThumbnailSrc } from "@/lib/media-type";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600",
@@ -152,12 +153,22 @@ export default async function PostsPage({
                 {/* Media thumbnail or content type indicator */}
                 {post.mediaUrl ? (
                   <div className="aspect-[4/3] bg-[#f5f0e6] overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={post.mediaUrl}
-                      alt=""
-                      className="h-full w-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
-                    />
+                    {post.contentType === "video" || isVideoMediaUrl(post.mediaUrl) ? (
+                      <video
+                        src={videoThumbnailSrc(post.mediaUrl)}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="h-full w-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                      />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={post.mediaUrl}
+                        alt=""
+                        className="h-full w-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                      />
+                    )}
                   </div>
                 ) : (
                   <div className="aspect-[4/3] bg-gradient-to-br from-[#f5f0e6] to-[#ede4d4] flex items-center justify-center">
