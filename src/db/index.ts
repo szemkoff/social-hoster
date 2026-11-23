@@ -569,6 +569,16 @@ function ensureSchema(sqlite: Database.Database) {
   addColumnIfMissing(sqlite, "organizations", "billing_email", "billing_email TEXT");
   addColumnIfMissing(sqlite, "organizations", "billing_cycle_start", "billing_cycle_start INTEGER");
 
+  // ── Waitlist ──
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS waitlist_signups (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      source TEXT NOT NULL DEFAULT 'landing',
+      created_at INTEGER NOT NULL
+    );
+  `);
+
   // ── API Keys ──
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS api_keys (
