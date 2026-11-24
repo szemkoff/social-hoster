@@ -192,6 +192,9 @@ export class FacebookProvider extends OAuthProvider {
     }
 
     const mediaUrls = content.mediaUrls ?? [];
+    if (content.postType === "image" && mediaUrls.length > 1) {
+      return this.publishPhotos(accessToken, pageId, content, mediaUrls);
+    }
     if (content.postType === "image" && mediaUrls.length > 0) {
       return this.publishPhoto(accessToken, pageId, content, mediaUrls[0]);
     }
@@ -219,6 +222,48 @@ export class FacebookProvider extends OAuthProvider {
       platformPostId: id,
       url: id ? `https://www.facebook.com/${id}` : undefined,
       extra: body,
+    };
+  }
+
+  // Multi-photo post: upload each image unpublished, then attach all of
+  // them to a single feed post (Facebook's equivalent of a carousel).
+  private async publishPhotos(
+    accessToken: string,
+    pageId: string,
+    content: PublishContent,
+    mediaUrls: string[]
+  ): Promise<PublishResult> {
+    const mediaIds: string[] = [];
+    for (const url of mediaUrls.slice(0, 10)) {
+      const photo = await this.requestJson<Record<string, unknown>>(
+        "POST",
+        `${BASE_URL}/${pageId}/photos`,
+        { accessToken, json: { url, published: false } }
+      );
+      const id = stringValue(photo.id);
+      if (!id) {
+        throw new PublishError("Facebook did not return an id for an uploaded photo", {
+          platform: this.platformName,
+        });
+      }
+      mediaIds.push(id);
+    }
+
+    const payload: Record<string, unknown> = {
+      attached_media: mediaIds.map((id) => ({ media_fbid: id })),
+    };
+    if (content.text) payload.message = content.text;
+
+    const body = await this.requestJson<Record<string, unknown>>(
+      "POST",
+      `${BASE_URL}/${pageId}/feed`,
+      { accessToken, json: payload }
+    );
+    const postId = stringValue(body.id);
+    return {
+      platformPostId: postId,
+      url: postId ? `https://www.facebook.com/${postId}` : undefined,
+      extra: { ...body, mediaIds },
     };
   }
 
