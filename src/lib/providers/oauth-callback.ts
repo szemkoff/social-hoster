@@ -227,8 +227,12 @@ async function saveFacebookPageConnections({
 
   fallback.searchParams.set("connected", "facebook");
   fallback.searchParams.set("pages", String(pages.length));
+  fallback.searchParams.set(
+    "pageNames",
+    pages.map((page) => page.name).filter(Boolean).join(", ")
+  );
   console.log(
-    `[oauth-callback] ✅ Saved Facebook Page connections for workspace ${tenant.currentWorkspace.id}: created=${created}, updated=${updated}`
+    `[oauth-callback] ✅ Saved Facebook Page connections for workspace ${tenant.currentWorkspace.id}: created=${created}, updated=${updated}, pages=${pages.map((p) => p.name).join(" | ")}`
   );
 
   try {
