@@ -192,10 +192,14 @@ export class FacebookProvider extends OAuthProvider {
     }
 
     const mediaUrls = content.mediaUrls ?? [];
-    if (content.postType === "image" && mediaUrls.length > 1) {
+    // The publisher labels any multi-image post "carousel"; on Facebook that
+    // becomes a multi-photo post. Videos inside a carousel are not supported
+    // here, so only image URLs are attached.
+    const isPhotoPost = content.postType === "image" || content.postType === "carousel";
+    if (isPhotoPost && mediaUrls.length > 1) {
       return this.publishPhotos(accessToken, pageId, content, mediaUrls);
     }
-    if (content.postType === "image" && mediaUrls.length > 0) {
+    if (isPhotoPost && mediaUrls.length > 0) {
       return this.publishPhoto(accessToken, pageId, content, mediaUrls[0]);
     }
     if (content.postType === "video" && mediaUrls.length > 0) {
