@@ -33,6 +33,10 @@ export class FacebookProvider extends OAuthProvider {
     "pages_show_list",
     "pages_read_engagement",
     "pages_manage_posts",
+    // Read comments from people on Page posts and reply/comment as the Page
+    // (Inbox comments and first comments on publish).
+    "pages_read_user_content",
+    "pages_manage_engagement",
     ...extraFacebookScopes(),
   ];
 
@@ -191,6 +195,45 @@ export class FacebookProvider extends OAuthProvider {
       );
     }
 
+    const result = await this.publishToPage(accessToken, pageId, content);
+    return this.addFirstComment(accessToken, content, result);
+  }
+
+  // Post the optional first comment as the Page. A failed comment never fails
+  // the publish; the error is kept in the result for the logs.
+  private async addFirstComment(
+    accessToken: string,
+    content: PublishContent,
+    result: PublishResult
+  ): Promise<PublishResult> {
+    const text = content.firstComment?.trim();
+    if (!text || !result.platformPostId) return result;
+    try {
+      const body = await this.requestJson<Record<string, unknown>>(
+        "POST",
+        `${BASE_URL}/${result.platformPostId}/comments`,
+        { accessToken, json: { message: text } }
+      );
+      return {
+        ...result,
+        extra: { ...recordValue(result.extra), firstCommentId: stringValue(body.id) },
+      };
+    } catch (error) {
+      return {
+        ...result,
+        extra: {
+          ...recordValue(result.extra),
+          firstCommentError: error instanceof Error ? error.message : String(error),
+        },
+      };
+    }
+  }
+
+  private async publishToPage(
+    accessToken: string,
+    pageId: string,
+    content: PublishContent
+  ): Promise<PublishResult> {
     const mediaUrls = content.mediaUrls ?? [];
     // The publisher labels any multi-image post "carousel"; on Facebook that
     // becomes a multi-photo post. Videos inside a carousel are not supported

@@ -47,7 +47,7 @@ export const connectionDefinition: ConnectionPlatformDefinition = {
         bullets: [
           "Requests only the Page list, read engagement, and publish permissions needed for posting.",
           "Saves each returned Facebook Page as its own connection with a Page access token.",
-          "Comments and inbox permissions should be added only after Meta app review approves them.",
+          "Comment permissions (pages_read_user_content, pages_manage_engagement) are requested on connect. Page admins with an app role can use them before Meta app review; others need review approval.",
         ],
         learnMoreUrl: "https://developers.facebook.com/docs/pages-api/",
       },
