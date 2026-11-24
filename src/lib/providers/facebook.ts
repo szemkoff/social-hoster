@@ -52,6 +52,10 @@ export class FacebookProvider extends OAuthProvider {
       state,
       scope: this.requiredScopes.join(","),
       response_type: "code",
+      // Re-show the permission and Page picker, even if the user granted the
+      // app before. Without this, Facebook silently reuses the earlier Page
+      // selection and new Pages can never be added.
+      auth_type: "rerequest",
     });
   }
 
@@ -99,33 +103,80 @@ export class FacebookProvider extends OAuthProvider {
   }
 
   async getUserPages(accessToken: string): Promise<FacebookPage[]> {
-    const body = await this.requestJson<Record<string, unknown>>(
+    const first = await this.requestJson<Record<string, unknown>>(
       "GET",
       `${BASE_URL}/me/accounts`,
       {
         accessToken,
-        params: { fields: "id,name,access_token,category,picture" },
+        params: { fields: PAGE_FIELDS, limit: "100" },
       }
     );
-    if (body.error) {
+    if (first.error) {
       throw new APIError("Failed to fetch Facebook pages", {
         platform: this.platformName,
-        rawResponse: body,
+        rawResponse: first,
       });
     }
 
-    const pages = Array.isArray(body.data) ? body.data : [];
-    return pages.map((item) => {
-      const page = recordValue(item);
-      const picture = recordValue(recordValue(page.picture).data);
-      return {
-        id: stringValue(page.id),
-        name: stringValue(page.name),
-        accessToken: stringValue(page.access_token),
-        category: stringValue(page.category),
-        picture: optionalString(picture.url),
-      };
-    });
+    const byId = new Map<string, FacebookPage>();
+    const add = (items: unknown[]) => {
+      for (const item of items) {
+        const page = toFacebookPage(item);
+        if (page.id && page.accessToken && !byId.has(page.id)) {
+          byId.set(page.id, page);
+        }
+      }
+    };
+
+    add(await this.collectPages(first));
+
+    // Pages owned by a Business portfolio are not always listed under
+    // /me/accounts. When business_management is granted, also read the
+    // portfolio's owned and client Pages. Errors here are non-fatal.
+    try {
+      const businesses = await this.requestJson<Record<string, unknown>>(
+        "GET",
+        `${BASE_URL}/me/businesses`,
+        { accessToken, params: { fields: "id,name", limit: "100" } }
+      );
+      const list = Array.isArray(businesses.data) ? businesses.data : [];
+      for (const biz of list) {
+        const bizId = stringValue(recordValue(biz).id);
+        if (!bizId) continue;
+        for (const edge of ["owned_pages", "client_pages"]) {
+          try {
+            const body = await this.requestJson<Record<string, unknown>>(
+              "GET",
+              `${BASE_URL}/${bizId}/${edge}`,
+              { accessToken, params: { fields: PAGE_FIELDS, limit: "100" } }
+            );
+            if (!body.error) add(await this.collectPages(body));
+          } catch {
+            /* non-critical */
+          }
+        }
+      }
+    } catch {
+      /* business_management not granted */
+    }
+
+    return [...byId.values()];
+  }
+
+  private async collectPages(body: Record<string, unknown>) {
+    const items: unknown[] = Array.isArray(body.data) ? [...body.data] : [];
+    let next = optionalString(recordValue(body.paging).next);
+    for (let i = 0; next && i < 10; i += 1) {
+      try {
+        const res = await fetch(next);
+        const page = (await res.json()) as Record<string, unknown>;
+        if (Array.isArray(page.data)) items.push(...page.data);
+        next = optionalString(recordValue(page.paging).next);
+      } catch {
+        break;
+      }
+    }
+    return items;
   }
 
   async publishPost(
@@ -215,6 +266,20 @@ export class FacebookProvider extends OAuthProvider {
       extra: body,
     };
   }
+}
+
+const PAGE_FIELDS = "id,name,access_token,category,picture";
+
+function toFacebookPage(item: unknown): FacebookPage {
+  const page = recordValue(item);
+  const picture = recordValue(recordValue(page.picture).data);
+  return {
+    id: stringValue(page.id),
+    name: stringValue(page.name),
+    accessToken: stringValue(page.access_token),
+    category: stringValue(page.category),
+    picture: optionalString(picture.url),
+  };
 }
 
 function extraFacebookScopes() {
