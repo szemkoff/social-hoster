@@ -414,25 +414,38 @@ async function pullPostCommentsForPlatform(
     );
 
   let pulled = 0;
-  for (const target of targets.filter((item) => resolveExternalPostId(item)).slice(0, 20)) {
+  const failures: string[] = [];
+  const recentTargets = targets
+    .filter((item) => resolveExternalPostId(item))
+    .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0))
+    .slice(0, 20);
+  for (const target of recentTargets) {
     const postId = resolveExternalPostId(target)!;
-    const result = await platformModule.comments.getComments(
-      accessToken,
-      postId,
-      undefined,
-      50
-    );
+    // A post deleted on the network (or otherwise unreadable) must not stop
+    // the pull for the rest of the account's posts.
+    let result: Awaited<ReturnType<NonNullable<typeof platformModule.comments>["getComments"]>>;
+    try {
+      result = await platformModule.comments.getComments(accessToken, postId, undefined, 50);
+    } catch (error) {
+      failures.push(`${postId}: ${error instanceof Error ? error.message : String(error)}`);
+      continue;
+    }
     for (const comment of result.data) {
       await upsertComment(workspaceId, platform, postId, comment, surfaceSeenAt);
       pulled += 1;
     }
   }
 
+  if (recentTargets.length > 0 && failures.length === recentTargets.length) {
+    throw new Error(failures[0]);
+  }
+
+  const skipped = failures.length > 0 ? ` Skipped ${failures.length} unavailable post(s).` : "";
   return {
     pulled,
     message: targets.length === 0
       ? "No published posts found for this platform yet."
-      : `Pulled comments from ${Math.min(targets.length, 20)} published posts.`,
+      : `Pulled comments from ${recentTargets.length - failures.length} published posts.${skipped}`,
   };
 }
 
