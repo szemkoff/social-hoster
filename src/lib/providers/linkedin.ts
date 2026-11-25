@@ -109,7 +109,11 @@ export class LinkedInProvider extends OAuthProvider {
     const author = await this.resolveAuthor(accessToken, content);
     const postType = content.postType ?? "text";
 
-    if (postType === "image" && firstMedia(content)) {
+    const images = allMedia(content);
+    if ((postType === "image" || postType === "carousel") && images.length > 1) {
+      return this.publishMultiImagePost(accessToken, author, content, images);
+    }
+    if ((postType === "image" || postType === "carousel") && firstMedia(content)) {
       return this.publishMediaPost(accessToken, author, content, "images", "image");
     }
     if (postType === "video" && firstMedia(content)) {
@@ -232,6 +236,50 @@ export class LinkedInProvider extends OAuthProvider {
     return { ...result, extra: { ...result.extra, [`${responseKey}Urn`]: assetUrn } };
   }
 
+  // LinkedIn multi-image post: 2–20 images, each uploaded via the Images API,
+  // then referenced from content.multiImage. LinkedIn shows them as a swipeable set.
+  private async publishMultiImagePost(
+    accessToken: string,
+    author: string,
+    content: PublishContent,
+    sources: string[]
+  ): Promise<PublishResult> {
+    const urns: string[] = [];
+    for (const source of sources.slice(0, MAX_MULTI_IMAGES)) {
+      urns.push(await this.uploadImage(accessToken, author, source));
+    }
+    const body = this.buildPostBody(author, content.text);
+    body.content = {
+      multiImage: { images: urns.map((id) => ({ id, altText: "" })) },
+    };
+    const result = await this.createPost(accessToken, body);
+    return { ...result, extra: { ...result.extra, imageUrns: urns } };
+  }
+
+  private async uploadImage(
+    accessToken: string,
+    author: string,
+    source: string
+  ): Promise<string> {
+    const init = await this.requestJson<JsonRecord>("POST", `${API_BASE}/rest/images`, {
+      accessToken,
+      headers: LINKEDIN_HEADERS,
+      params: { action: "initializeUpload" },
+      json: { initializeUploadRequest: { owner: author } },
+    });
+    const value = readRecord(init, "value");
+    const uploadUrl = readString(value, "uploadUrl");
+    const urn = readString(value, "image");
+    if (!uploadUrl || !urn) {
+      throw new PublishError("Failed to initialize LinkedIn image upload", {
+        platform: this.platformName,
+        rawResponse: value,
+      });
+    }
+    await this.uploadBinary(accessToken, uploadUrl, source);
+    return urn;
+  }
+
   private async createPost(
     accessToken: string,
     body: JsonRecord
@@ -276,6 +324,13 @@ async function readBytes(source: string): Promise<Uint8Array> {
     return new Uint8Array(await response.arrayBuffer());
   }
   return new Uint8Array(await readFile(source));
+}
+
+const MAX_MULTI_IMAGES = 20;
+
+function allMedia(content: PublishContent): string[] {
+  const list = content.mediaFiles?.length ? content.mediaFiles : content.mediaUrls ?? [];
+  return list.filter((item): item is string => typeof item === "string" && item.length > 0);
 }
 
 function firstMedia(content: PublishContent): string | undefined {
